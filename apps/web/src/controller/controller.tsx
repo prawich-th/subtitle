@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Subtitle } from "../types";
 import "./controller.scss";
 import { socket } from "../socket";
@@ -7,14 +7,25 @@ import { useNavigate } from "react-router";
 const Card = ({
 	index,
 	subtitle,
-	className
+	className,
+	jump,
+	handler
 }: {
 	index: number;
 	subtitle: Subtitle;
 	className: string;
+	jump: boolean;
+	handler: (index: number) => void;
 }) => {
 	return (
-		<div className={`preview__card ${className}`}>
+		<div
+			className={`preview__card ${className}`}
+			onClick={() => {
+				if (jump) {
+					handler(index);
+				}
+			}}
+		>
 			<p className="preview__card--index">
 				INDEX {index} | ACT {subtitle?.act} | SCENE {subtitle?.scene}
 			</p>
@@ -39,10 +50,12 @@ export default function Controller() {
 		isLyric: false,
 		remark: ""
 	});
-	const backendUrl = useMemo(() => "http://192.168.1.169:8001", []);
+	const backendUrl = useMemo(() => "http://localhost:8001", []);
 	const isVerified = useMemo(() => {
 		return localStorage.getItem("verified") === "true";
 	}, []);
+	const [willJumpToClick, setWillJumpToClick] = useState(false);
+	const prevSubRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
 		console.log("isVerified", isVerified);
@@ -135,9 +148,19 @@ export default function Controller() {
 		if (!isVerified) {
 			return;
 		}
-		fetch(`${backendUrl}/subcontrol/next`).catch((error) =>
-			console.error("Error moving to next subtitle:", error)
-		);
+
+		fetch(`${backendUrl}/subcontrol/next`)
+			.catch((error) => console.error("Error moving to next subtitle:", error))
+			.finally(() => {
+				if (prevSubRef.current) {
+					if (prevSubRef.current.getBoundingClientRect().top < 0) {
+						console.log("Scrolling to current subtitle");
+						prevSubRef.current.scrollIntoView({
+							behavior: "smooth"
+						});
+					}
+				}
+			});
 	};
 
 	const handlePrevious = () => {
@@ -146,6 +169,14 @@ export default function Controller() {
 		}
 		fetch(`${backendUrl}/subcontrol/previous`).catch((error) =>
 			console.error("Error moving to previous subtitle:", error)
+		);
+	};
+
+	const handleJumpToLine = (index: number) => {
+		console.log("handleJumpToLine", index);
+		if (!index) return;
+		fetch(`${backendUrl}/subcontrol/jump/${index}`).catch((error) =>
+			console.error("Error jumping to line:", error)
 		);
 	};
 
@@ -180,9 +211,7 @@ export default function Controller() {
 		}
 
 		if (foundIndex !== -1) {
-			fetch(`${backendUrl}/subcontrol/jump/${foundIndex}`).catch((error) =>
-				console.error("Error jumping to act/scene:", error)
-			);
+			handleJumpToLine(foundIndex);
 		} else {
 			console.error(
 				`No subtitle found matching Act: ${act || "any"}, Scene: ${scene || "any"}`
@@ -196,7 +225,7 @@ export default function Controller() {
 		<>
 			<div className="controller">
 				<div className="actions">
-					<h1>ACTIONS</h1>
+					<h1>OPERATOR</h1>
 					<button className="actions__new-session" onClick={handleNewSession}>
 						New Session
 					</button>{" "}
@@ -207,17 +236,13 @@ export default function Controller() {
 						Next
 					</button>
 					<form
-						action={`${backendUrl}/subcontrol/jump/${index}`}
-						method="get"
 						onSubmit={(e) => {
 							e.preventDefault();
 							(e.target as HTMLFormElement).reset();
-
-							if (index) {
-								fetch(`${backendUrl}/subcontrol/jump/${index}`).catch((error) =>
-									console.error("Error jumping to line:", error)
-								);
-							}
+							const formData = new FormData(e.target as HTMLFormElement);
+							const index = Number((formData.get("index") as string)?.trim());
+							console.log("Jumping to line:", index, "formData", formData);
+							handleJumpToLine(index);
 						}}
 					>
 						<input type="number" name="index" placeholder="Index" />
@@ -250,19 +275,36 @@ export default function Controller() {
 							Jump to Act/Scene
 						</button>
 					</form>
+					<button
+						className="actions__jump-to-click"
+						onClick={() => {
+							setWillJumpToClick(!willJumpToClick);
+						}}
+						style={{
+							backgroundColor: willJumpToClick ? "orangered" : ""
+						}}
+					>
+						{willJumpToClick ? "Stop Jump to Click" : "Start Jump to Click"}
+					</button>
 				</div>
 				<div className="preview">
 					{index - 1 >= 0 && (
-						<Card
-							className="preview__previous"
-							index={index - 1}
-							subtitle={subtitle[index - 1]}
-						/>
+						<span ref={prevSubRef} style={{ padding: "0", margin: "0" }}>
+							<Card
+								className="preview__previous"
+								index={index - 1}
+								subtitle={subtitle[index - 1]}
+								jump={willJumpToClick}
+								handler={handleJumpToLine}
+							/>
+						</span>
 					)}
 					<Card
 						className="preview__current"
 						index={index}
 						subtitle={currentSubtitle}
+						jump={willJumpToClick}
+						handler={handleJumpToLine}
 					/>
 
 					{subtitle.slice(index + 1).map((nextSubtitle, nextOffset) => {
@@ -273,6 +315,8 @@ export default function Controller() {
 								index={nextIndex}
 								subtitle={nextSubtitle}
 								key={nextIndex}
+								jump={willJumpToClick}
+								handler={handleJumpToLine}
 							/>
 						);
 					})}

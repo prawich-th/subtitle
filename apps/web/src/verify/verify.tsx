@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 export default function Verify() {
 	const navigate = useNavigate();
-	const backendUrl = useMemo(() => "http://192.168.1.169:8001", []);
+	const backendUrl = useMemo(() => "http://localhost:8001", []);
 	const handleVerify = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const formData = new FormData(e.target as HTMLFormElement);
@@ -33,9 +33,31 @@ export default function Verify() {
 	return (
 		<div>
 			<h1>Verify</h1>
-			<form onSubmit={handleVerify}>
-				<input type="text" name="code" placeholder="Enter code" />
-				<button type="submit">Verify</button>
+			<form onSubmit={handleVerify} style={{ display: "flex", gap: "1rem" }}>
+				<input
+					type="text"
+					name="code"
+					placeholder="Enter code"
+					style={{
+						padding: "0.5rem 1rem",
+						backgroundColor: "#eee",
+						color: "black",
+						border: "none",
+						borderRadius: "0.5rem"
+					}}
+				/>
+				<button
+					type="submit"
+					style={{
+						padding: "0.5rem 1rem",
+						backgroundColor: "#222",
+						color: "white",
+						border: "none",
+						borderRadius: "0.5rem"
+					}}
+				>
+					Verify
+				</button>
 			</form>
 		</div>
 	);

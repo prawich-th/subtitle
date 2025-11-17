@@ -3,6 +3,7 @@ import { Subtitle } from "../types";
 import "./display.scss";
 import { socket } from "../socket";
 import { useMediaQuery } from "react-responsive";
+import QRCode from "react-qr-code";
 
 export default function Display() {
 	const [isLoading, setIsLoading] = useState(true);
@@ -17,8 +18,9 @@ export default function Display() {
 		isLyric: false,
 		remark: ""
 	});
-	const backendUrl = useMemo(() => "http://192.168.1.169:8001", []);
+	const backendUrl = useMemo(() => "http://localhost:8001", []);
 	const isLandscape = useMediaQuery({ query: "(max-height: 300px)" });
+	const currentUrl = window.location.href;
 
 	useEffect(() => {
 		socket.connect();
@@ -68,40 +70,59 @@ export default function Display() {
 		setCurrentSubtitle(subtitle[safeIndex]);
 	}, [index, subtitle]);
 
+	useEffect(() => {
+		if (document.documentElement.requestFullscreen) {
+			document.documentElement.requestFullscreen();
+			// @ts-ignore
+		} else if (document.documentElement.webkitRequestFullscreen) {
+			// @ts-ignore
+			document.documentElement.webkitRequestFullscreen();
+		}
+	}, []);
+
 	// const handleNext = () => {
 	// 	fetch(`${backendUrl}/subcontrol/next`).catch((error) =>
 	// 		console.error("Error moving to next subtitle:", error)
 	// 	);
 	// };
+	if (isLoading) {
+		return <div>Loading...</div>;
+	}
 
-	return isLoading ? (
-		<div>Loading...</div>
+	if (currentSubtitle?.char === "QR") {
+		return (
+			<div className="qr">
+				<div className="qr__layout">
+					<span className="qr__title">
+						<img src="/tech.png" alt="Nova Prods Logo" />
+						<h1>Scan this QR Code</h1>
+						<h2>to view Subtitle on your device</h2>
+					</span>
+
+					<QRCode value={currentUrl} />
+					<p>{currentUrl}</p>
+				</div>
+			</div>
+		);
+	}
+
+	return isLandscape ? (
+		<div className="landscape">
+			<div className="landscape__layout">
+				<h1 className="landscape__character">{currentSubtitle?.char}</h1>
+				<div className="landscape__text">
+					<h2 className="landscape__text--thai">{currentSubtitle?.thai}</h2>
+					<h2 className="landscape__text--english">{currentSubtitle?.eng}</h2>
+				</div>
+			</div>
+		</div>
 	) : (
-		<>
-			{isLandscape ? (
-				<div className="landscape">
-					<div className="landscape__layout">
-						<h1 className="landscape__character">{currentSubtitle?.char}</h1>
-						<div className="landscape__text">
-							<h2 className="landscape__text--thai">{currentSubtitle?.thai}</h2>
-							<h2 className="landscape__text--english">
-								{currentSubtitle?.eng}
-							</h2>
-						</div>
-					</div>
-				</div>
-			) : (
-				<div className="display">
-					<h1 className="display__character">{currentSubtitle?.char}</h1>
-					<div className="display__text">
-						<h2 className="display__text--thai">{currentSubtitle?.thai}</h2>
-						<h2 className="display__text--english">{currentSubtitle?.eng}</h2>
-					</div>
-				</div>
-			)}
-			{/* <button className="next" onClick={handleNext}>
-				Next ({index})
-			</button> */}
-		</>
+		<div className="display">
+			<h1 className="display__character">{currentSubtitle?.char}</h1>
+			<div className="display__text">
+				<h2 className="display__text--thai">{currentSubtitle?.thai}</h2>
+				<h2 className="display__text--english">{currentSubtitle?.eng}</h2>
+			</div>
+		</div>
 	);
 }

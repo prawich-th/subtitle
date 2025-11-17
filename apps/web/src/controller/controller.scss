@@ -44,6 +44,7 @@
 		}
 	}
 }
+
 .preview {
 	display: flex;
 	flex-direction: column;
@@ -75,7 +76,10 @@
 			font-weight: normal;
 		}
 	}
-
+	&__current {
+		background-color: rgb(232, 232, 232);
+		color: #222;
+	}
 	&__previous {
 		opacity: 0.5;
 		transition: opacity 0.1s ease-in-out;
