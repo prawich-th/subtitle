@@ -18,7 +18,7 @@ export default function Display() {
 		isLyric: false,
 		remark: ""
 	});
-	const backendUrl = useMemo(() => "http://localhost:8001", []);
+	const backendUrl = useMemo(() => "http://192.168.8.145:8001", []);
 	const isLandscape = useMediaQuery({ query: "(max-height: 300px)" });
 	const currentUrl = window.location.href;
 

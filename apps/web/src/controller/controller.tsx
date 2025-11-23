@@ -50,7 +50,7 @@ export default function Controller() {
 		isLyric: false,
 		remark: ""
 	});
-	const backendUrl = useMemo(() => "http://localhost:8001", []);
+	const backendUrl = useMemo(() => "http://192.168.8.145:8001", []);
 	const isVerified = useMemo(() => {
 		return localStorage.getItem("verified") === "true";
 	}, []);

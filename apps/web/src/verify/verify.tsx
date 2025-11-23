@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 export default function Verify() {
 	const navigate = useNavigate();
-	const backendUrl = useMemo(() => "http://localhost:8001", []);
+	const backendUrl = useMemo(() => "http://192.168.8.145:8001", []);
 	const handleVerify = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const formData = new FormData(e.target as HTMLFormElement);
