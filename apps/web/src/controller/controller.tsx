@@ -38,6 +38,18 @@ const Card = ({
 
 export default function Controller() {
 	const navigate = useNavigate();
+	const [backendUrl, setBackendUrl] = useState<string>(() => {
+		return localStorage.getItem("backendUrl") || "";
+	});
+	const [backendUrl2, setBackendUrl2] = useState<string>(() => {
+		return localStorage.getItem("backendUrl2") || "";
+	});
+	const [useSecondServer, setUseSecondServer] = useState<boolean>(() => {
+		return localStorage.getItem("useSecondServer") === "true";
+	});
+	const [isBackendUrlSet, setIsBackendUrlSet] = useState<boolean>(() => {
+		return !!localStorage.getItem("backendUrl");
+	});
 	const [isLoading, setIsLoading] = useState(true);
 	const [subtitle, setSubtitle] = useState<Subtitle[]>([]);
 	const [index, setIndex] = useState(0);
@@ -50,12 +62,65 @@ export default function Controller() {
 		isLyric: false,
 		remark: ""
 	});
-	const backendUrl = useMemo(() => "http://192.168.8.145:8001", []);
 	const isVerified = useMemo(() => {
 		return localStorage.getItem("verified") === "true";
 	}, []);
 	const [willJumpToClick, setWillJumpToClick] = useState(false);
+	const [showSecondServer, setShowSecondServer] = useState(useSecondServer);
 	const prevSubRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		setShowSecondServer(useSecondServer);
+	}, [useSecondServer]);
+
+	const handleBackendUrlSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		const formData = new FormData(e.target as HTMLFormElement);
+		const url = (formData.get("backendUrl") as string)?.trim() || "";
+		const url2 = (formData.get("backendUrl2") as string)?.trim() || "";
+		const useSecond = (formData.get("useSecondServer") as string) === "on";
+		
+		if (url) {
+			// Remove trailing slash if present
+			const cleanUrl = url.replace(/\/$/, "");
+			setBackendUrl(cleanUrl);
+			localStorage.setItem("backendUrl", cleanUrl);
+			
+			if (url2 && useSecond) {
+				const cleanUrl2 = url2.replace(/\/$/, "");
+				setBackendUrl2(cleanUrl2);
+				localStorage.setItem("backendUrl2", cleanUrl2);
+				setUseSecondServer(true);
+				localStorage.setItem("useSecondServer", "true");
+			} else {
+				setUseSecondServer(false);
+				localStorage.setItem("useSecondServer", "false");
+			}
+			
+			setIsBackendUrlSet(true);
+		}
+	};
+
+	const handleChangeBackendUrl = () => {
+		socket.disconnect();
+		setIsBackendUrlSet(false);
+		setIsLoading(true);
+		setSubtitle([]);
+		setIndex(0);
+	};
+
+	const fetchFromServer = async (url: string): Promise<Subtitle[]> => {
+		try {
+			const response = await fetch(`${url}/data`);
+			if (!response.ok) {
+				throw new Error(`Failed to fetch from ${url}`);
+			}
+			return await response.json();
+		} catch (error) {
+			console.error(`Error fetching from ${url}:`, error);
+			return [];
+		}
+	};
 
 	useEffect(() => {
 		console.log("isVerified", isVerified);
@@ -65,7 +130,7 @@ export default function Controller() {
 	}, [isVerified]);
 
 	useEffect(() => {
-		if (!isVerified) {
+		if (!isVerified || !isBackendUrlSet || !backendUrl) {
 			return;
 		}
 		socket.connect();
@@ -81,12 +146,28 @@ export default function Controller() {
 
 		console.info("Initializing subtitles");
 		setIsLoading(true);
-		fetch(`${backendUrl}/data`)
-			.then((response) => response.json())
-			.then((data) => {
-				setSubtitle(data);
-				if (data.length > 0) {
-					setCurrentSubtitle(data[0]);
+		
+		// Fetch from both servers simultaneously if second server is enabled
+		const fetchPromises = [fetchFromServer(backendUrl)];
+		if (useSecondServer && backendUrl2) {
+			fetchPromises.push(fetchFromServer(backendUrl2));
+		}
+
+		Promise.all(fetchPromises)
+			.then((results) => {
+				// Use the first server's data as primary, or merge if needed
+				const primaryData = results[0];
+				const secondaryData = results[1] || [];
+				
+				// If both servers returned data, log for comparison
+				if (secondaryData.length > 0) {
+					console.log("Primary server data length:", primaryData.length);
+					console.log("Secondary server data length:", secondaryData.length);
+				}
+				
+				setSubtitle(primaryData);
+				if (primaryData.length > 0) {
+					setCurrentSubtitle(primaryData[0]);
 				}
 			})
 			.catch((error: Error) => {
@@ -108,7 +189,7 @@ export default function Controller() {
 			socket.off("subIndex", handleSubIndex);
 			socket.disconnect();
 		};
-	}, [backendUrl]);
+	}, [backendUrl, backendUrl2, useSecondServer, isVerified, isBackendUrlSet]);
 
 	useEffect(() => {
 		if (!isVerified) {
@@ -149,7 +230,12 @@ export default function Controller() {
 			return;
 		}
 
-		fetch(`${backendUrl}/subcontrol/next`)
+		const fetchPromises = [fetch(`${backendUrl}/subcontrol/next`)];
+		if (useSecondServer && backendUrl2) {
+			fetchPromises.push(fetch(`${backendUrl2}/subcontrol/next`));
+		}
+
+		Promise.all(fetchPromises)
 			.catch((error) => console.error("Error moving to next subtitle:", error))
 			.finally(() => {
 				if (prevSubRef.current) {
@@ -167,7 +253,11 @@ export default function Controller() {
 		if (!isVerified) {
 			return;
 		}
-		fetch(`${backendUrl}/subcontrol/previous`).catch((error) =>
+		const fetchPromises = [fetch(`${backendUrl}/subcontrol/previous`)];
+		if (useSecondServer && backendUrl2) {
+			fetchPromises.push(fetch(`${backendUrl2}/subcontrol/previous`));
+		}
+		Promise.all(fetchPromises).catch((error) =>
 			console.error("Error moving to previous subtitle:", error)
 		);
 	};
@@ -175,7 +265,11 @@ export default function Controller() {
 	const handleJumpToLine = (index: number) => {
 		console.log("handleJumpToLine", index);
 		if (!index) return;
-		fetch(`${backendUrl}/subcontrol/jump/${index}`).catch((error) =>
+		const fetchPromises = [fetch(`${backendUrl}/subcontrol/jump/${index}`)];
+		if (useSecondServer && backendUrl2) {
+			fetchPromises.push(fetch(`${backendUrl2}/subcontrol/jump/${index}`));
+		}
+		Promise.all(fetchPromises).catch((error) =>
 			console.error("Error jumping to line:", error)
 		);
 	};
@@ -184,7 +278,11 @@ export default function Controller() {
 		if (!isVerified) {
 			return;
 		}
-		fetch(`${backendUrl}/subcontrol/init`).catch((error) =>
+		const fetchPromises = [fetch(`${backendUrl}/subcontrol/init`)];
+		if (useSecondServer && backendUrl2) {
+			fetchPromises.push(fetch(`${backendUrl2}/subcontrol/init`));
+		}
+		Promise.all(fetchPromises).catch((error) =>
 			console.error("Error creating new session:", error)
 		);
 	};
@@ -222,6 +320,76 @@ export default function Controller() {
 		}
 	};
 
+	if (!isBackendUrlSet) {
+		return (
+			<div className="controller">
+				<div className="actions">
+					<h1>SETUP</h1>
+					<form onSubmit={handleBackendUrlSubmit}>
+						<div style={{ marginBottom: "15px" }}>
+							<label style={{ display: "block", marginBottom: "5px" }}>
+								Primary Backend URL:
+							</label>
+							<input
+								type="text"
+								name="backendUrl"
+								placeholder="Enter Backend URL (e.g., http://192.168.1.169:8001)"
+								defaultValue={backendUrl}
+								required
+								style={{
+									padding: "10px",
+									fontSize: "16px",
+									width: "400px",
+									marginRight: "10px"
+								}}
+							/>
+						</div>
+						<div style={{ marginBottom: "15px" }}>
+							<label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+								<input
+									type="checkbox"
+									name="useSecondServer"
+									checked={showSecondServer}
+									onChange={(e) => setShowSecondServer(e.target.checked)}
+								/>
+								<span>Enable Second Server</span>
+							</label>
+						</div>
+						{showSecondServer && (
+							<div style={{ marginBottom: "15px" }}>
+								<label style={{ display: "block", marginBottom: "5px" }}>
+									Secondary Backend URL (optional):
+								</label>
+								<input
+									type="text"
+									name="backendUrl2"
+									placeholder="Enter Second Backend URL (e.g., http://192.168.1.170:8001)"
+									defaultValue={backendUrl2}
+									style={{
+										padding: "10px",
+										fontSize: "16px",
+										width: "400px",
+										marginRight: "10px"
+									}}
+								/>
+							</div>
+						)}
+						<button
+							type="submit"
+							style={{
+								padding: "10px 20px",
+								fontSize: "16px",
+								cursor: "pointer"
+							}}
+						>
+							Connect
+						</button>
+					</form>
+				</div>
+			</div>
+		);
+	}
+
 	return isLoading ? (
 		<div>Loading Subtitles Data from the Server.</div>
 	) : (
@@ -229,6 +397,15 @@ export default function Controller() {
 			<div className="controller">
 				<div className="actions">
 					<h1>OPERATOR</h1>
+					<button
+						className="actions__change-url"
+						onClick={handleChangeBackendUrl}
+						style={{ marginBottom: "10px" }}
+					>
+						Change Backend URL{useSecondServer ? "s" : ""} ({backendUrl}
+						{useSecondServer && backendUrl2 ? `, ${backendUrl2}` : ""})
+					</button>
+					<br />
 					<button className="actions__new-session" onClick={handleNewSession}>
 						New Session
 					</button>{" "}
