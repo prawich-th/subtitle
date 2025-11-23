@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getData } from "./controller/data";
+import { getData, forceUpdateSubtitles } from "./controller/data";
 import {
 	initSession,
 	jumpToLine,
@@ -11,6 +11,7 @@ import { verify } from "./controller/verify";
 const router = Router();
 
 router.get("/data", getData);
+router.get("/force-update", forceUpdateSubtitles);
 
 router.get("/subcontrol/init", initSession);
 router.get("/subcontrol/next", nextLine);
