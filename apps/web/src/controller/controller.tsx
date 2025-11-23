@@ -123,11 +123,12 @@ export default function Controller() {
 	};
 
 	useEffect(() => {
-		console.log("isVerified", isVerified);
-		if (!isVerified) {
+		// Only check verification after backend URL is set
+		if (isBackendUrlSet && backendUrl && !isVerified) {
+			console.log("Backend URL set, checking verification");
 			navigate("/verify");
 		}
-	}, [isVerified]);
+	}, [isVerified, isBackendUrlSet, backendUrl, navigate]);
 
 	useEffect(() => {
 		if (!isVerified || !isBackendUrlSet || !backendUrl) {
