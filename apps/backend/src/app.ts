@@ -25,17 +25,12 @@ declare global {
 	}
 }
 
-app.use(cors());
-
-// app.use((req, res, next) => {
-// 	res.setHeader(
-// 		"Access-Control-Allow-Origin",
-// 		"*, http://192.168.88.127:5173/"
-// 	); // Allow all origins
-// 	res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE"); // Allowed methods
-// 	res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization"); // Allowed headers
-// 	next();
-// });
+app.use(cors({
+	origin: "*",
+	methods: ["GET", "POST", "PUT", "DELETE"],
+	allowedHeaders: ["Content-Type", "Authorization"],
+	credentials: true
+}));
 
 app.use(express.json());
 app.use(
