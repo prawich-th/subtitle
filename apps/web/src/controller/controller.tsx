@@ -212,10 +212,13 @@ export default function Controller() {
 
 		if (foundIndex !== -1) {
 			handleJumpToLine(foundIndex);
+			return true;
 		} else {
 			console.error(
 				`No subtitle found matching Act: ${act || "any"}, Scene: ${scene || "any"}`
 			);
+			return false;
+
 		}
 	};
 
