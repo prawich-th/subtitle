@@ -42,7 +42,6 @@ export default function Display() {
 		remark: ""
 	});
 	const isLandscape = useMediaQuery({ query: "(max-height: 300px)" });
-	const currentUrl = window.location.href;
 
 	const handleBackendUrlSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
