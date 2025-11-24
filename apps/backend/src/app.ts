@@ -8,7 +8,13 @@ import cors from "cors";
 import { centralError, notFound404 } from "./controller/error";
 import { Server as SocketServer } from "socket.io";
 
-export const io = new SocketServer(server);
+export const io = new SocketServer(server, {
+	cors: {
+		origin: "*",
+		methods: ["GET", "POST"],
+		credentials: true
+	}
+});
 
 declare global {
 	namespace Express {
