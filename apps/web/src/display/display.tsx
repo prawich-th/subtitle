@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Subtitle } from "../types";
 import "./display.scss";
-import { socket } from "../socket";
+import { createSocket } from "../socket";
 import { useMediaQuery } from "react-responsive";
 import QRCode from "react-qr-code";
 import { useSearchParams } from "react-router";
@@ -10,24 +10,13 @@ export default function Display() {
 	const [searchParams] = useSearchParams();
 	// Check URL params first, then localStorage
 	const getInitialBackendUrl = (): string => {
-		const urlParams = new URLSearchParams(window.location.search);
-		const urlParam = urlParams.get("service");
-		if (urlParam) {
-			const cleanUrl = urlParam.replace(/\/$/, "");
-			localStorage.setItem("displayBackendUrl", cleanUrl);
-			return cleanUrl;
-		}
-		return localStorage.getItem("displayBackendUrl") || "";
+		const urlParam = searchParams.get("service");
+		return urlParam ? urlParam.replace(/\/$/, "") : localStorage.getItem("displayBackendUrl") || "";
 	};
 
 	const [backendUrl, setBackendUrl] = useState<string>(getInitialBackendUrl);
 	const [isBackendUrlSet, setIsBackendUrlSet] = useState<boolean>(() => {
-		const urlParams = new URLSearchParams(window.location.search);
-		const urlParam = urlParams.get("backendUrl");
-		if (urlParam) {
-			return true;
-		}
-		return !!localStorage.getItem("displayBackendUrl");
+		return searchParams.get("service") ? true : !!localStorage.getItem("displayBackendUrl");
 	});
 	const [isLoading, setIsLoading] = useState(true);
 	const [subtitle, setSubtitle] = useState<Subtitle[]>([]);
@@ -41,7 +30,15 @@ export default function Display() {
 		isLyric: false,
 		remark: ""
 	});
+	const [isDebug, setIsDebug] = useState(false);
+	useEffect(() => {
+		const debugParam = searchParams.get("debug");
+		if (debugParam) {
+			setIsDebug(debugParam === "true");
+		}
+	}, [searchParams]);
 	const isLandscape = useMediaQuery({ query: "(max-height: 300px)" });
+	const socketRef = useRef<ReturnType<typeof createSocket> | null>(null);
 
 	const handleBackendUrlSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -78,15 +75,70 @@ export default function Display() {
 		if (!isBackendUrlSet || !backendUrl) {
 			return;
 		}
-		socket.connect();
+
+		// Create socket with the backend URL
+		const socket = createSocket(backendUrl);
+		socketRef.current = socket;
+
 		const handleSubIndex = (data: { index: number }) => {
-			console.log("SubIndex:", data);
+			console.log("SubIndex received:", data);
 			if (typeof data.index === "number") {
 				setIndex(data.index);
 			}
 		};
 
+		const handleConnect = () => {
+			console.log("Socket connected to:", backendUrl);
+			// Request current index when connected to ensure sync
+			fetch(`${backendUrl}/subcontrol/current`)
+				.then((response) => response.json())
+				.then((data) => {
+					console.log("Current subtitle on connect:", data);
+					if (typeof data.index === "number") {
+						setIndex(data.index);
+					}
+				})
+				.catch((error) => {
+					console.error("Error fetching current index on connect:", error);
+				});
+		};
+
+		const handleDisconnect = (reason: string) => {
+			console.log("Socket disconnected from:", backendUrl, "Reason:", reason);
+		};
+
+		const handleConnectError = (error: Error) => {
+			console.error("Socket connection error:", error);
+		};
+
+		const handleReconnect = (attemptNumber: number) => {
+			console.log("Socket reconnected after", attemptNumber, "attempts");
+		};
+
+		const handleReconnectAttempt = (attemptNumber: number) => {
+			console.log("Socket reconnection attempt", attemptNumber);
+		};
+
+		const handleReconnectError = (error: Error) => {
+			console.error("Socket reconnection error:", error);
+		};
+
+		const handleReconnectFailed = () => {
+			console.error("Socket reconnection failed after all attempts");
+		};
+
+		// Set up all event listeners before connecting
 		socket.on("subIndex", handleSubIndex);
+		socket.on("connect", handleConnect);
+		socket.on("disconnect", handleDisconnect);
+		socket.on("connect_error", handleConnectError);
+		socket.on("reconnect", handleReconnect);
+		socket.on("reconnect_attempt", handleReconnectAttempt);
+		socket.on("reconnect_error", handleReconnectError);
+		socket.on("reconnect_failed", handleReconnectFailed);
+
+		// Connect the socket
+		socket.connect();
 
 		console.info("Initializing subtitles");
 		setIsLoading(true);
@@ -111,8 +163,20 @@ export default function Display() {
 			});
 
 		return () => {
-			socket.off("subIndex", handleSubIndex);
-			socket.disconnect();
+			if (socketRef.current) {
+				// Remove all event listeners
+				socketRef.current.off("subIndex");
+				socketRef.current.off("connect");
+				socketRef.current.off("disconnect");
+				socketRef.current.off("connect_error");
+				socketRef.current.off("reconnect");
+				socketRef.current.off("reconnect_attempt");
+				socketRef.current.off("reconnect_error");
+				socketRef.current.off("reconnect_failed");
+				// Disconnect the socket
+				socketRef.current.disconnect();
+				socketRef.current = null;
+			}
 		};
 	}, [backendUrl, isBackendUrlSet]);
 
@@ -222,6 +286,72 @@ export default function Display() {
 		</div>
 	) : (
 		<div className="display">
+			{isDebug && (
+				<>
+				<div className="debug"
+				
+				style={
+					{
+						position: "absolute",
+						top: 0,
+						left: 0,
+						color: "red",
+						backgroundColor: "white",
+						padding: "0rem",
+	
+						width: "fit-content",
+						height: "fit-content",
+						fontSize: "1.5rem",
+						fontWeight: "bold",
+					}
+				}
+				>
+			<p style={
+				{
+					margin: 0,
+					padding: 0,
+				}
+			}
+			> index {index} | act {currentSubtitle?.act} | scene {currentSubtitle?.scene}</p>
+			<p
+				style={{
+					margin: 0,
+					padding: 0,
+					marginTop: "0.5rem",
+					fontWeight: "lighter",
+				}}
+			>
+				{`act ${currentSubtitle.act} ${subtitle.findIndex(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene && sub.char === currentSubtitle.char && sub.thai === currentSubtitle.thai && sub.eng === currentSubtitle.eng) + 1} / ${subtitle.filter(sub => sub.act === currentSubtitle.act).length} `}
+				{`scene ${currentSubtitle.scene} ${
+					subtitle
+						.filter(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene)
+						.findIndex(sub => sub.char === currentSubtitle.char && sub.thai === currentSubtitle.thai && sub.eng === currentSubtitle.eng) + 1
+				} / ${subtitle.filter(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene).length}`}
+			</p>
+					</div>
+					<div className="index-display"
+					style={{
+						position: "absolute",
+						top: 0,
+						right: 0,
+						fontSize: "1rem",
+						fontWeight: "bold",
+						color: "white",
+						fontFamily: "Sarabun",
+						backgroundColor: "red",
+						height: "fit-content",
+					}}>
+						<p
+						style={{
+							margin: 0,
+							padding: 0,
+							fontSize: "4rem",
+							lineHeight: 1,
+						}}
+						>{index}</p>
+					</div>
+					</>
+			)}
 			<h1 className="display__character">{currentSubtitle?.char}</h1>
 			<div className="display__text">
 				<h2 className="display__text--thai">{currentSubtitle?.thai}</h2>

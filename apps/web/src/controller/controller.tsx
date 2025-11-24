@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Subtitle } from "../types";
 import "./controller.scss";
-import { socket } from "../socket";
+import { createSocket } from "../socket";
 import { useNavigate } from "react-router";
 
 const Card = ({
@@ -67,7 +67,9 @@ export default function Controller() {
 	}, []);
 	const [willJumpToClick, setWillJumpToClick] = useState(false);
 	const [showSecondServer, setShowSecondServer] = useState(useSecondServer);
+	const [showActSceneModal, setShowActSceneModal] = useState(false);
 	const prevSubRef = useRef<HTMLDivElement | null>(null);
+	const socketRef = useRef<ReturnType<typeof createSocket> | null>(null);
 
 	useEffect(() => {
 		setShowSecondServer(useSecondServer);
@@ -102,7 +104,9 @@ export default function Controller() {
 	};
 
 	const handleChangeBackendUrl = () => {
-		socket.disconnect();
+		if (socketRef.current) {
+			socketRef.current.disconnect();
+		}
 		setIsBackendUrlSet(false);
 		setIsLoading(true);
 		setSubtitle([]);
@@ -134,16 +138,70 @@ export default function Controller() {
 		if (!isVerified || !isBackendUrlSet || !backendUrl) {
 			return;
 		}
-		socket.connect();
+
+		// Create socket with the backend URL
+		const socket = createSocket(backendUrl);
+		socketRef.current = socket;
 
 		const handleSubIndex = (data: { index: number }) => {
-			console.log("SubIndex:", data);
+			console.log("SubIndex received:", data);
 			if (typeof data.index === "number") {
 				setIndex(data.index);
 			}
 		};
 
+		const handleConnect = () => {
+			console.log("Socket connected to:", backendUrl);
+			// Request current index when connected to ensure sync
+			fetch(`${backendUrl}/subcontrol/current`)
+				.then((response) => response.json())
+				.then((data) => {
+					console.log("Current subtitle on connect:", data);
+					if (typeof data.index === "number") {
+						setIndex(data.index);
+					}
+				})
+				.catch((error) => {
+					console.error("Error fetching current index on connect:", error);
+				});
+		};
+
+		const handleDisconnect = (reason: string) => {
+			console.log("Socket disconnected from:", backendUrl, "Reason:", reason);
+		};
+
+		const handleConnectError = (error: Error) => {
+			console.error("Socket connection error:", error);
+		};
+
+		const handleReconnect = (attemptNumber: number) => {
+			console.log("Socket reconnected after", attemptNumber, "attempts");
+		};
+
+		const handleReconnectAttempt = (attemptNumber: number) => {
+			console.log("Socket reconnection attempt", attemptNumber);
+		};
+
+		const handleReconnectError = (error: Error) => {
+			console.error("Socket reconnection error:", error);
+		};
+
+		const handleReconnectFailed = () => {
+			console.error("Socket reconnection failed after all attempts");
+		};
+
+		// Set up all event listeners before connecting
 		socket.on("subIndex", handleSubIndex);
+		socket.on("connect", handleConnect);
+		socket.on("disconnect", handleDisconnect);
+		socket.on("connect_error", handleConnectError);
+		socket.on("reconnect", handleReconnect);
+		socket.on("reconnect_attempt", handleReconnectAttempt);
+		socket.on("reconnect_error", handleReconnectError);
+		socket.on("reconnect_failed", handleReconnectFailed);
+
+		// Connect the socket
+		socket.connect();
 
 		console.info("Initializing subtitles");
 		setIsLoading(true);
@@ -187,8 +245,20 @@ export default function Controller() {
 			});
 
 		return () => {
-			socket.off("subIndex", handleSubIndex);
-			socket.disconnect();
+			if (socketRef.current) {
+				// Remove all event listeners
+				socketRef.current.off("subIndex");
+				socketRef.current.off("connect");
+				socketRef.current.off("disconnect");
+				socketRef.current.off("connect_error");
+				socketRef.current.off("reconnect");
+				socketRef.current.off("reconnect_attempt");
+				socketRef.current.off("reconnect_error");
+				socketRef.current.off("reconnect_failed");
+				// Disconnect the socket
+				socketRef.current.disconnect();
+				socketRef.current = null;
+			}
 		};
 	}, [backendUrl, backendUrl2, useSecondServer, isVerified, isBackendUrlSet]);
 
@@ -294,10 +364,26 @@ export default function Controller() {
 			return;
 		}
 
+		// Normalize the search values
+		const searchAct = act ? String(act).trim() : "";
+		const searchScene = scene ? String(scene).trim() : "";
+
+		console.log("Jumping to Act:", searchAct, "Scene:", searchScene);
+
 		// Find the first subtitle matching the act and/or scene
 		const foundIndex = subtitle.findIndex((sub) => {
-			const actMatch = !act || String(sub.act) === String(act);
-			const sceneMatch = !scene || String(sub.scene) === String(scene);
+			// Normalize subtitle values for comparison (handle numbers, strings, null, undefined)
+			const subAct = sub.act != null ? String(sub.act).trim() : "";
+			const subScene = sub.scene != null ? String(sub.scene).trim() : "";
+
+			// Match act: if act is provided, must match exactly; if empty, matches any
+			const actMatch = !searchAct || subAct === searchAct;
+			// Match scene: if scene is provided, must match exactly; if empty, matches any
+			const sceneMatch = !searchScene || subScene === searchScene;
+
+			if (actMatch && sceneMatch) {
+				console.log("Found match at index:", subtitle.indexOf(sub), "Act:", subAct, "Scene:", subScene);
+			}
 
 			return actMatch && sceneMatch;
 		});
@@ -309,16 +395,55 @@ export default function Controller() {
 			return false;
 		}
 
-		if (foundIndex !== -1) {
-			handleJumpToLine(foundIndex);
-			return true;
-		} else {
-			console.error(
-				`No subtitle found matching Act: ${act || "any"}, Scene: ${scene || "any"}`
-			);
-			return false;
+		console.log("Jumping to index:", foundIndex);
+		handleJumpToLine(foundIndex);
+		setShowActSceneModal(false);
+		return true;
+	};
 
-		}
+	// Get unique acts and their scenes
+	const getActsAndScenes = () => {
+		const actMap = new Map<string, Set<string>>();
+		
+		subtitle.forEach((sub) => {
+			// Convert to string, handling null/undefined/empty
+			const act = sub.act != null ? String(sub.act).trim() : "";
+			const scene = sub.scene != null ? String(sub.scene).trim() : "";
+			
+			// Skip if act or scene is empty or "0" (but include "1", "2", etc.)
+			if (!act || act === "0" || !scene || scene === "0") {
+				return;
+			}
+			
+			if (!actMap.has(act)) {
+				actMap.set(act, new Set());
+			}
+			actMap.get(act)?.add(scene);
+		});
+
+		// Convert to sorted arrays
+		const acts = Array.from(actMap.keys()).sort((a, b) => {
+			const numA = Number(a);
+			const numB = Number(b);
+			if (!isNaN(numA) && !isNaN(numB)) {
+				return numA - numB;
+			}
+			return a.localeCompare(b);
+		});
+
+		const result: Array<{ act: string; scenes: string[] }> = acts.map((act) => {
+			const scenes = Array.from(actMap.get(act) || []).sort((a, b) => {
+				const numA = Number(a);
+				const numB = Number(b);
+				if (!isNaN(numA) && !isNaN(numB)) {
+					return numA - numB;
+				}
+				return a.localeCompare(b);
+			});
+			return { act, scenes };
+		});
+
+		return result;
 	};
 
 	if (!isBackendUrlSet) {
@@ -391,10 +516,115 @@ export default function Controller() {
 		);
 	}
 
+	const actsAndScenes = getActsAndScenes();
+
 	return isLoading ? (
 		<div>Loading Subtitles Data from the Server.</div>
 	) : (
 		<>
+			{showActSceneModal && (
+				<div
+					style={{
+						position: "fixed",
+						top: 0,
+						left: 0,
+						right: 0,
+						bottom: 0,
+						backgroundColor: "rgba(0, 0, 0, 0.7)",
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						zIndex: 1000,
+						padding: "20px"
+					}}
+					onClick={() => setShowActSceneModal(false)}
+				>
+					<div
+						style={{
+							backgroundColor: "white",
+							borderRadius: "8px",
+							padding: "20px",
+							maxWidth: "600px",
+							maxHeight: "80vh",
+							overflow: "auto",
+							width: "100%",
+							boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
+						}}
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div
+							style={{
+								display: "flex",
+								justifyContent: "space-between",
+								alignItems: "center",
+								marginBottom: "20px"
+							}}
+						>
+							<h2 style={{ margin: 0 }}>Jump to Act/Scene</h2>
+							<button
+								onClick={() => setShowActSceneModal(false)}
+								style={{
+									background: "none",
+									border: "none",
+									fontSize: "24px",
+									cursor: "pointer",
+									padding: "0 10px"
+								}}
+							>
+								×
+							</button>
+						</div>
+						<div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+							{actsAndScenes.map(({ act, scenes }) => (
+								<div key={act} style={{ borderBottom: "1px solid #eee", paddingBottom: "15px" }}>
+									<h3
+										style={{
+											margin: "0 0 10px 0",
+											cursor: "pointer",
+											color: "#333",
+											padding: "8px",
+											borderRadius: "4px",
+											backgroundColor: "#f5f5f5"
+										}}
+										onClick={() => handleJumpToActScene(act, "")}
+									>
+										Act {act}
+									</h3>
+									<div
+										style={{
+											display: "grid",
+											gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
+											gap: "8px",
+											marginLeft: "20px"
+										}}
+									>
+										{scenes.map((scene) => (
+											<button
+												key={`${act}-${scene}`}
+												onClick={() => handleJumpToActScene(act, scene)}
+												style={{
+													color: "black",
+													fontFamily: "Sarabun",
+													padding: "8px 12px",
+													border: "1px solid #ddd",
+													borderRadius: "4px",
+													backgroundColor: "white",
+													cursor: "pointer",
+													fontSize: "14px",
+													transition: "all 0.2s"
+												}}
+						
+											>
+												Scene {scene}
+											</button>
+										))}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+			)}
 			<div className="controller">
 				<div className="actions">
 					<h1>OPERATOR</h1>
@@ -431,31 +661,12 @@ export default function Controller() {
 							Jump to Line
 						</button>
 					</form>
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							const formData = new FormData(e.target as HTMLFormElement);
-							const act = (formData.get("act") as string)?.trim() || "";
-							const scene = (formData.get("scene") as string)?.trim() || "";
-							handleJumpToActScene(act, scene);
-						}}
+					<button
+						className="actions__jump-act-scene"
+						onClick={() => setShowActSceneModal(true)}
 					>
-						<input
-							type="text"
-							name="act"
-							placeholder="Act (optional)"
-							className="actions__act-input"
-						/>
-						<input
-							type="text"
-							name="scene"
-							placeholder="Scene (optional)"
-							className="actions__scene-input"
-						/>
-						<button type="submit" className="actions__jump-act-scene">
-							Jump to Act/Scene
-						</button>
-					</form>
+						Jump to Act/Scene
+					</button>
 					<button
 						className="actions__jump-to-click"
 						onClick={() => {
