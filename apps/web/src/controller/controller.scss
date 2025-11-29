@@ -3,6 +3,10 @@
 	grid-template-columns: 1fr 4fr;
 	overflow-y: hidden;
 	height: 100vh;
+
+	@media (max-width: 768px) {
+		grid-template-columns: 1fr;
+	}
 }
 .actions {
 	display: flex;
@@ -29,6 +33,11 @@
 			background-color: orangered;
 		}
 		font-family: "Sarabun", Inter, sans-serif;
+		// noselect
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
 	}
 
 	form {
@@ -42,6 +51,10 @@
 			border: none;
 			font-family: "Sarabun", Inter, sans-serif;
 		}
+	}
+
+	@media (max-width: 768px) {
+		display: none;
 	}
 }
 
@@ -77,7 +90,7 @@
 		}
 	}
 	&__current {
-		background-color: rgb(232, 232, 232);
+		background-color: rgb(255, 255, 255);
 		color: #222;
 	}
 	&__previous {
@@ -86,12 +99,35 @@
 		&:hover {
 			opacity: 1;
 		}
+		@media (max-width: 768px) {
+			display: none;
+		}
 	}
 	&__next {
 		opacity: 0.6;
 		transition: opacity 0.1s ease-in-out;
 		&:hover {
 			opacity: 1;
+		}
+	}
+}
+
+.con_debug {
+	display: none;
+	@media (max-width: 768px) {
+		display: block;
+		background-color: white;
+		color: #222;
+		padding: 1rem;
+		font-size: 1.2rem;
+		font-family: "Sarabun", Inter, sans-serif;
+		font-weight: lighter;
+		text-align: center;
+		box-shadow: 0 0 2rem 0.5rem rgba(0, 0, 0, 0.25);
+		z-index: 100;
+		p {
+			margin: 0;
+			padding: 0;
 		}
 	}
 }

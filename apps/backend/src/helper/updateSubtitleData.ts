@@ -22,7 +22,7 @@ export const updateSubtitleData = (): Promise<
 
 					let curScene = 1;
 					let curAct = 1;
-					parsedData.forEach((line: Subtitle) => {
+					parsedData.forEach((line: any) => {
 						if (line.scene && line.scene != curScene) {
 							curScene = line.scene;
 						}
@@ -35,7 +35,7 @@ export const updateSubtitleData = (): Promise<
 							char: line.char,
 							eng: line.eng,
 							thai: line.thai,
-							isLyric: line.isLyric,
+							isLyric: line.isLyrics === "TRUE" ? true : false,
 							remark: line.remark
 						});
 					});

@@ -11,12 +11,16 @@ export default function Display() {
 	// Check URL params first, then localStorage
 	const getInitialBackendUrl = (): string => {
 		const urlParam = searchParams.get("service");
-		return urlParam ? urlParam.replace(/\/$/, "") : localStorage.getItem("displayBackendUrl") || "";
+		return urlParam
+			? urlParam.replace(/\/$/, "")
+			: localStorage.getItem("displayBackendUrl") || "";
 	};
 
 	const [backendUrl, setBackendUrl] = useState<string>(getInitialBackendUrl);
 	const [isBackendUrlSet, setIsBackendUrlSet] = useState<boolean>(() => {
-		return searchParams.get("service") ? true : !!localStorage.getItem("displayBackendUrl");
+		return searchParams.get("service")
+			? true
+			: !!localStorage.getItem("displayBackendUrl");
 	});
 	const [isLoading, setIsLoading] = useState(true);
 	const [subtitle, setSubtitle] = useState<Subtitle[]>([]);
@@ -190,6 +194,10 @@ export default function Display() {
 	}, [index, subtitle]);
 
 	useEffect(() => {
+		handleFullScreen();
+	}, []);
+
+	const handleFullScreen = () => {
 		if (document.documentElement.requestFullscreen) {
 			document.documentElement.requestFullscreen();
 			// @ts-ignore
@@ -197,7 +205,7 @@ export default function Display() {
 			// @ts-ignore
 			document.documentElement.webkitRequestFullscreen();
 		}
-	}, []);
+	};
 
 	// const handleNext = () => {
 	// 	fetch(`${backendUrl}/subcontrol/next`).catch((error) =>
@@ -267,8 +275,18 @@ export default function Display() {
 						<h2>to view Subtitle on your device</h2>
 					</span>
 
-					<QRCode value={"https://subtitle.prawichth.com/display?service=" + backendUrl} />
-					<p>{"https://subtitle.prawichth.com/display?service=" + backendUrl}</p>
+					<QRCode
+						value={
+							window.location.origin +
+							"/display?debug=true&service=" +
+							backendUrl
+						}
+					/>
+					<p>
+						{window.location.origin +
+							"/display?debug=true&service=" +
+							backendUrl}
+					</p>
 				</div>
 			</div>
 		);
@@ -288,74 +306,89 @@ export default function Display() {
 		<div className="display">
 			{isDebug && (
 				<>
-				<div className="debug"
-				
-				style={
-					{
-						position: "absolute",
-						top: 0,
-						left: 0,
-						color: "red",
-						backgroundColor: "white",
-						padding: "0rem",
-	
-						width: "fit-content",
-						height: "fit-content",
-						fontSize: "1.5rem",
-						fontWeight: "bold",
-					}
-				}
-				>
-			<p style={
-				{
-					margin: 0,
-					padding: 0,
-				}
-			}
-			> index {index} | act {currentSubtitle?.act} | scene {currentSubtitle?.scene}</p>
-			<p
-				style={{
-					margin: 0,
-					padding: 0,
-					marginTop: "0.5rem",
-					fontWeight: "lighter",
-				}}
-			>
-				{`act ${currentSubtitle.act} ${subtitle.findIndex(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene && sub.char === currentSubtitle.char && sub.thai === currentSubtitle.thai && sub.eng === currentSubtitle.eng) + 1} / ${subtitle.filter(sub => sub.act === currentSubtitle.act).length} `}
-				{`scene ${currentSubtitle.scene} ${
-					subtitle
-						.filter(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene)
-						.findIndex(sub => sub.char === currentSubtitle.char && sub.thai === currentSubtitle.thai && sub.eng === currentSubtitle.eng) + 1
-				} / ${subtitle.filter(sub => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene).length}`}
-			</p>
-					</div>
-					<div className="index-display"
-					style={{
-						position: "absolute",
-						top: 0,
-						right: 0,
-						fontSize: "1rem",
-						fontWeight: "bold",
-						color: "white",
-						fontFamily: "Sarabun",
-						backgroundColor: "red",
-						height: "fit-content",
-					}}>
+					<div onClick={handleFullScreen} className="debug">
 						<p
-						style={{
-							margin: 0,
-							padding: 0,
-							fontSize: "4rem",
-							lineHeight: 1,
-						}}
-						>{index}</p>
+							style={{
+								margin: 0,
+								padding: 0
+							}}
+						>
+							{" "}
+							index {index} | act {currentSubtitle?.act} | scene{" "}
+							{currentSubtitle?.scene}
+						</p>
+						<p
+							style={{
+								margin: 0,
+								padding: 0,
+								marginTop: "0.5rem",
+								fontWeight: "lighter"
+							}}
+						>
+							{`act ${currentSubtitle.act} ${
+								subtitle
+									.filter((sub) => sub.act === currentSubtitle.act)
+									.findIndex(
+										(sub) =>
+											sub.char === currentSubtitle.char &&
+											sub.thai === currentSubtitle.thai &&
+											sub.eng === currentSubtitle.eng
+									) + 1
+							} / ${subtitle.filter((sub) => sub.act === currentSubtitle.act).length} `}
+							{`scene ${currentSubtitle.scene} ${
+								subtitle
+									.filter(
+										(sub) =>
+											sub.act === currentSubtitle.act &&
+											sub.scene === currentSubtitle.scene
+									)
+									.findIndex(
+										(sub) =>
+											sub.char === currentSubtitle.char &&
+											sub.thai === currentSubtitle.thai &&
+											sub.eng === currentSubtitle.eng
+									) + 1
+							} / ${subtitle.filter((sub) => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene).length}`}
+							lyrics {currentSubtitle.isLyric}
+						</p>
 					</div>
-					</>
+					<div
+						className="index-display"
+						style={{
+							position: "absolute",
+							top: 0,
+							right: 0,
+							fontSize: "1rem",
+							fontWeight: "bold",
+							color: "white",
+							fontFamily: "Sarabun",
+							backgroundColor: "red",
+							height: "fit-content"
+						}}
+					>
+						<p
+							style={{
+								margin: 0,
+								padding: 0,
+								fontSize: "5rem",
+								lineHeight: 1
+							}}
+						>
+							{index}
+						</p>
+					</div>
+				</>
 			)}
 			<h1 className="display__character">{currentSubtitle?.char}</h1>
 			<div className="display__text">
-				<h2 className="display__text--thai">{currentSubtitle?.thai}</h2>
-				<h2 className="display__text--english">{currentSubtitle?.eng}</h2>
+				<h2 className="display__text--thai">
+					{currentSubtitle.isLyric ? "♪" : ""} {currentSubtitle?.thai}
+					{currentSubtitle.isLyric ? "♪" : ""}
+				</h2>
+				<h2 className="display__text--english">
+					{currentSubtitle.isLyric ? "♪" : ""} {currentSubtitle?.eng}
+					{currentSubtitle.isLyric ? "♪" : ""}
+				</h2>
 			</div>
 		</div>
 	);

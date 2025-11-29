@@ -1,8 +1,8 @@
 .display {
 	color: white;
 	display: grid;
-	grid-template-rows: 1.5fr 2fr;
-	gap: 4rem;
+	grid-template-rows: 1fr 2fr;
+	gap: 1.5rem;
 	height: 100%;
 	padding: 0 2rem;
 	box-sizing: border-box;
@@ -11,11 +11,16 @@
 		padding: 0 1rem;
 	}
 
+	cursor: none;
+
 	&__character {
 		font-size: 4rem;
 		font-weight: bold;
 		align-self: flex-end;
 		justify-self: center;
+		margin: 0;
+		padding: 0;
+		line-height: 1;
 
 		@media (max-width: 768px) {
 			align-self: flex-start;
@@ -35,8 +40,10 @@
 			font-size: 3rem;
 			font-weight: normal;
 			line-height: 1.2;
+			margin-bottom: 0;
 		}
 		&--english {
+			margin-top: 0;
 			line-height: 1;
 			padding-bottom: 2rem;
 			font-size: 2rem;
@@ -89,6 +96,11 @@
 	justify-content: center;
 	height: 100%;
 
+	p {
+		font-weight: lighter;
+		font-style: italic;
+	}
+
 	&__title {
 		display: flex;
 		flex-direction: column;
@@ -138,4 +150,23 @@
 	border-radius: 5px;
 	cursor: pointer;
 	font-size: 1.2rem;
+}
+
+.debug {
+	position: absolute;
+	top: 0;
+	left: 0;
+	color: red;
+	background-color: white;
+	padding: 0rem;
+	width: fit-content;
+	height: fit-content;
+	font-size: 1.5rem;
+	font-weight: bold;
+	font-family: "Fira Code", monospace;
+	letter-spacing: 0.1;
+	word-spacing: -0.05em;
+	&:hover {
+		cursor: pointer;
+	}
 }
