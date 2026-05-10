@@ -1,50 +1,26 @@
-import { Subtitle } from "../type";
+import type { Subtitle } from "../type";
 import fs from "fs";
 import path from "path";
+import db from "../db/drizzle";
 
-export const updateSubtitleData = (): Promise<
-	Subtitle[] | [] | Error | null
-> => {
-	try {
-		console.info("Updating subtitles");
-		return new Promise<Subtitle[] | [] | Error | null>((resolve, reject) => {
-			fs.readFile(
-				path.join(__dirname, "..", "..", "data", "sub.json"),
-				"utf8",
-				(err, data) => {
-					if (err) {
-						console.error("Error reading subdata:", err);
-						reject(err);
-					}
+export const updateSubtitleData = async (
+  subId: number,
+): Promise<Subtitle[] | [] | Error | null> => {
+  try {
+    console.info("Updating subtitles");
+    const subtitle = await db.query.subtitles.findFirst({
+      where: {
+        id: subId,
+      },
+    });
 
-					const parsedData = JSON.parse(data) as Subtitle[] | [];
-					const subtitles: Subtitle[] = [];
+    if (!subtitle) {
+      return null;
+    }
 
-					let curScene = 1;
-					let curAct = 1;
-					parsedData.forEach((line: any) => {
-						if (line.scene && line.scene != curScene) {
-							curScene = line.scene;
-						}
-						if (line.act && line.act != curAct) {
-							curAct = line.act;
-						}
-						subtitles.push({
-							act: curAct,
-							scene: curScene,
-							char: line.char,
-							eng: line.eng,
-							thai: line.thai,
-							isLyric: line.isLyrics === "TRUE" ? true : false,
-							remark: line.remark
-						});
-					});
-					resolve(subtitles);
-				}
-			);
-		});
-	} catch (error) {
-		console.error("Error updating subdata:", error);
-		return Promise.reject(error as Error);
-	}
+    return subtitle.subtitles;
+  } catch (error) {
+    console.error("Error updating subdata:", error);
+    return Promise.reject(error as Error);
+  }
 };
