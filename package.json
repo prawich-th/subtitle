@@ -12,5 +12,9 @@
     "turbo": "^2.6.1"
   },
   "packageManager": "pnpm@10.22.0",
-  "name": "with-vite-react"
+  "name": "with-vite-react",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }
