@@ -81,13 +81,13 @@ export default function Controller() {
 		const url = (formData.get("backendUrl") as string)?.trim() || "";
 		const url2 = (formData.get("backendUrl2") as string)?.trim() || "";
 		const useSecond = (formData.get("useSecondServer") as string) === "on";
-
+		
 		if (url) {
 			// Remove trailing slash if present
 			const cleanUrl = url.replace(/\/$/, "");
 			setBackendUrl(cleanUrl);
 			localStorage.setItem("backendUrl", cleanUrl);
-
+			
 			if (url2 && useSecond) {
 				const cleanUrl2 = url2.replace(/\/$/, "");
 				setBackendUrl2(cleanUrl2);
@@ -98,7 +98,7 @@ export default function Controller() {
 				setUseSecondServer(false);
 				localStorage.setItem("useSecondServer", "false");
 			}
-
+			
 			setIsBackendUrlSet(true);
 		}
 	};
@@ -205,7 +205,7 @@ export default function Controller() {
 
 		console.info("Initializing subtitles");
 		setIsLoading(true);
-
+		
 		// Fetch from both servers simultaneously if second server is enabled
 		const fetchPromises = [fetchFromServer(backendUrl)];
 		if (useSecondServer && backendUrl2) {
@@ -217,13 +217,13 @@ export default function Controller() {
 				// Use the first server's data as primary, or merge if needed
 				const primaryData = results[0];
 				const secondaryData = results[1] || [];
-
+				
 				// If both servers returned data, log for comparison
 				if (secondaryData.length > 0) {
 					console.log("Primary server data length:", primaryData.length);
 					console.log("Secondary server data length:", secondaryData.length);
 				}
-
+				
 				setSubtitle(primaryData);
 				if (primaryData.length > 0) {
 					setCurrentSubtitle(primaryData[0]);
@@ -382,14 +382,7 @@ export default function Controller() {
 			const sceneMatch = !searchScene || subScene === searchScene;
 
 			if (actMatch && sceneMatch) {
-				console.log(
-					"Found match at index:",
-					subtitle.indexOf(sub),
-					"Act:",
-					subAct,
-					"Scene:",
-					subScene
-				);
+				console.log("Found match at index:", subtitle.indexOf(sub), "Act:", subAct, "Scene:", subScene);
 			}
 
 			return actMatch && sceneMatch;
@@ -411,17 +404,17 @@ export default function Controller() {
 	// Get unique acts and their scenes
 	const getActsAndScenes = () => {
 		const actMap = new Map<string, Set<string>>();
-
+		
 		subtitle.forEach((sub) => {
 			// Convert to string, handling null/undefined/empty
 			const act = sub.act != null ? String(sub.act).trim() : "";
 			const scene = sub.scene != null ? String(sub.scene).trim() : "";
-
+			
 			// Skip if act or scene is empty or "0" (but include "1", "2", etc.)
 			if (!act || act === "0" || !scene || scene === "0") {
 				return;
 			}
-
+			
 			if (!actMap.has(act)) {
 				actMap.set(act, new Set());
 			}
@@ -478,9 +471,7 @@ export default function Controller() {
 							/>
 						</div>
 						<div style={{ marginBottom: "15px" }}>
-							<label
-								style={{ display: "flex", alignItems: "center", gap: "10px" }}
-							>
+							<label style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 								<input
 									type="checkbox"
 									name="useSecondServer"
@@ -583,17 +574,9 @@ export default function Controller() {
 								×
 							</button>
 						</div>
-						<div
-							style={{ display: "flex", flexDirection: "column", gap: "15px" }}
-						>
+						<div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
 							{actsAndScenes.map(({ act, scenes }) => (
-								<div
-									key={act}
-									style={{
-										borderBottom: "1px solid #eee",
-										paddingBottom: "15px"
-									}}
-								>
+								<div key={act} style={{ borderBottom: "1px solid #eee", paddingBottom: "15px" }}>
 									<h3
 										style={{
 											margin: "0 0 10px 0",
@@ -610,8 +593,7 @@ export default function Controller() {
 									<div
 										style={{
 											display: "grid",
-											gridTemplateColumns:
-												"repeat(auto-fill, minmax(80px, 1fr))",
+											gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
 											gap: "8px",
 											marginLeft: "20px"
 										}}
@@ -631,6 +613,7 @@ export default function Controller() {
 													fontSize: "14px",
 													transition: "all 0.2s"
 												}}
+						
 											>
 												Scene {scene}
 											</button>
@@ -695,40 +678,6 @@ export default function Controller() {
 					>
 						{willJumpToClick ? "Stop Jump to Click" : "Start Jump to Click"}
 					</button>
-				</div>
-
-				<div className="con_debug">
-					<p>
-						index {index} | act {currentSubtitle?.act} | scene{" "}
-						{currentSubtitle?.scene}
-					</p>
-					<p>
-						{`act ${currentSubtitle.act} [${
-							subtitle
-								.filter((sub) => sub.act === currentSubtitle.act)
-								.findIndex(
-									(sub) =>
-										sub.char === currentSubtitle.char &&
-										sub.thai === currentSubtitle.thai &&
-										sub.eng === currentSubtitle.eng
-								) + 1
-						} / ${subtitle.filter((sub) => sub.act === currentSubtitle.act).length}]`}
-						{" | "}
-						{`scene ${currentSubtitle.scene} [${
-							subtitle
-								.filter(
-									(sub) =>
-										sub.act === currentSubtitle.act &&
-										sub.scene === currentSubtitle.scene
-								)
-								.findIndex(
-									(sub) =>
-										sub.char === currentSubtitle.char &&
-										sub.thai === currentSubtitle.thai &&
-										sub.eng === currentSubtitle.eng
-								) + 1
-						} / ${subtitle.filter((sub) => sub.act === currentSubtitle.act && sub.scene === currentSubtitle.scene).length}]`}
-					</p>
 				</div>
 				<div className="preview">
 					{index - 1 >= 0 && (
