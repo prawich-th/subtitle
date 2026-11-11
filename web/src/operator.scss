@@ -628,3 +628,72 @@ a {
 		}
 	}
 }
+
+// Warning carousel settings in the editor
+.warnings {
+	background: #141414;
+	border: 1px solid #333;
+	border-radius: 0.5rem;
+	padding: 1rem;
+	margin-bottom: 1rem;
+	h2 {
+		margin: 0;
+	}
+	&__item {
+		display: grid;
+		grid-template-columns: auto 11rem 1fr 1fr 9rem auto;
+		gap: 0.5rem;
+		align-items: center;
+		margin-bottom: 0.5rem;
+	}
+	&__colour {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		input[type="color"] {
+			width: 2.6rem;
+			height: 2.4rem;
+			padding: 0;
+			border: 1px solid #555;
+			border-radius: 4px;
+			background: none;
+			cursor: pointer;
+		}
+	}
+	&__swatches {
+		display: grid;
+		grid-template-columns: repeat(3, 1rem);
+		gap: 3px;
+		button {
+			width: 1rem;
+			height: 1rem;
+			border: 1px solid #666;
+			border-radius: 3px;
+			padding: 0;
+			cursor: pointer;
+		}
+	}
+	&__preview {
+		color: white;
+		text-align: center;
+		font-size: 1.2rem;
+		padding: 0.3rem 0.5rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	&__actions {
+		opacity: 1;
+	}
+	&__foot {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+		margin-top: 1rem;
+		flex-wrap: wrap;
+	}
+	&__seconds {
+		width: 5rem;
+		display: inline-block;
+	}
+}

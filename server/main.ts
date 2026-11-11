@@ -68,6 +68,8 @@ const liveState = (): LiveState => ({
   title: liveShow?.title ?? "",
   index: liveIndex,
   lines: liveShow && liveShow.lines.length ? liveShow.lines : [NOT_STARTED],
+  warnings: liveShow?.warnings ?? [],
+  warningSeconds: liveShow?.warningSeconds ?? 5,
 });
 
 const persist = () => saveState({ showId: liveShow?.id ?? null, index: liveIndex });
@@ -123,11 +125,24 @@ const operatorOnly = (req: Request, res: Response, next: NextFunction) => {
   res.status(401).json({ message: "Operator PIN required" });
 };
 
-const lanAddresses = () =>
-  Object.values(os.networkInterfaces())
-    .flat()
-    .filter((net) => net && net.family === "IPv4" && !net.internal)
-    .map((net) => `http://${net!.address}:${PORT}`);
+// Addresses other devices on the network can use to reach this Mac, best guess
+// first: real Wi-Fi / Ethernet (en0, en1…) on a normal home/venue network comes
+// before VPNs, virtual machines and self-assigned (169.254.x.x) addresses.
+const lanAddresses = () => {
+  const score = (name: string, address: string) => {
+    const isPrivate = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(address);
+    const isLinkLocal = address.startsWith("169.254.");
+    return (/^en\d+$/.test(name) ? 0 : 2) + (isPrivate ? 0 : 1) + (isLinkLocal ? 10 : 0);
+  };
+  return Object.entries(os.networkInterfaces())
+    .flatMap(([name, nets]) =>
+      (nets ?? [])
+        .filter((net) => net.family === "IPv4" && !net.internal)
+        .map((net) => ({ address: net.address, score: score(name, net.address) })),
+    )
+    .sort((a, b) => a.score - b.score)
+    .map((net) => `http://${net.address}:${PORT}`);
+};
 
 /** The address audience phones should open (shown as the QR code). */
 const audienceUrl = () =>
@@ -197,7 +212,9 @@ api.get("/shows", (_req, res) => res.json(listShows(liveShow?.id ?? null)));
 api.post("/shows", (req, res) => {
   const copyOf = req.body?.copyOf ? getShow(String(req.body.copyOf)) : null;
   const lines = copyOf ? copyOf.lines.map(({ id, ...rest }) => rest) : req.body?.lines;
-  res.status(201).json(createShow(String(req.body?.title ?? ""), lines));
+  res.status(201).json(
+    createShow(String(req.body?.title ?? ""), lines as Line[], copyOf ?? {}),
+  );
 });
 
 api.get("/shows/:id", (req, res) => {
@@ -274,7 +291,8 @@ server.on("error", (error: NodeJS.ErrnoException) => {
   process.exit(1);
 });
 
-server.listen(PORT, () => {
+// "0.0.0.0" = accept connections from other devices on the network, not just this Mac.
+server.listen(PORT, "0.0.0.0", () => {
   const line = "─".repeat(58);
   console.log(`
 ${line}

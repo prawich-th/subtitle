@@ -53,7 +53,10 @@ export function useLive(base = "") {
         .catch((error) => console.error("Could not load subtitles:", error));
 
     const socket = io(base || window.location.origin, {
-      transports: ["websocket", "polling"],
+      // Start with plain web requests and upgrade to a websocket when the
+      // network allows it, so updates still arrive on networks that block
+      // websockets.
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
@@ -74,8 +77,15 @@ export function useLive(base = "") {
     });
     refresh();
 
+    // Safety net: if the live connection is down, keep asking the server
+    // directly so a screen never stays on an old line.
+    const safetyNet = setInterval(() => {
+      if (!socket.connected) refresh();
+    }, 2000);
+
     return () => {
       cancelled = true;
+      clearInterval(safetyNet);
       socket.removeAllListeners();
       socket.disconnect();
     };

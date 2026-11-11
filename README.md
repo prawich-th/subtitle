@@ -86,6 +86,23 @@ the line above", just like in the spreadsheet.
 - A line whose Character is **QR** shows a QR code so the audience can follow on their phones (**+ QR code slide** adds one).
 - **Remark** is a note for the operator only; the audience never sees it.
 
+**Warning carousel (before the show)**
+
+The coloured "NO FILM / NO FLASH / NO FOOD…" messages that loop before the show.
+
+1. In the editor press **Warnings**. Each row is one message: pick the box
+   colour (click the colour square for any colour, or one of the small presets),
+   type the box text, the English and the Thai. Use ↑ ↓ ✕ to reorder or remove,
+   **+ Add warning** for a new one, and set how many seconds each one stays.
+2. The carousel plays on the displays while they are on a line whose Character
+   is **WARNINGS**. If the show has none yet, the panel offers
+   **+ Add it as the first line**.
+3. On show day: stay on the WARNINGS line while the audience comes in, then
+   press **Next** to move on.
+
+A message with the box text left empty is shown as a plain line of text (used
+for "NovaDrama | No theatre without people").
+
 **Editing during a show** is fine. If the show is on the displays, the editor says
 so in an orange bar; a change appears on every screen as soon as you click out of
 the box. The displays stay on the same line even if you add or delete lines above it.
@@ -124,11 +141,37 @@ Add `?debug=true` to the display address to see line numbers on screen during re
 | --- | --- |
 | A display is stuck or blank | Reload the page on that device. Check it is on the same Wi-Fi as the Mac. |
 | Operator page says "Connection lost" | The Terminal window was closed or the Mac lost its network. Double-click `start.command` again. |
+| Another device can't open the address | Work through **Connecting other devices** below. |
 | Phones can't open the address | They are on a different Wi-Fi (or a "guest" network that blocks devices from seeing each other). Use the same network as the Mac. If macOS asks to "allow incoming connections", choose **Allow**. |
 | The address / QR code is wrong | The Mac has several network connections. Operator → **Audience link & PIN** → type the right one under **Audience address**. |
 | "Port 8001 is already in use" | It is already running in another window. Use that one, or close it first. |
 | I broke the subtitles | Press **↶ Undo**, or take an older copy from `data/backups/<show>/` and import that file in the editor. |
 | First start fails | It needs internet the first time. Connect and double-click `start.command` again. |
+
+---
+
+## Connecting other devices
+
+Checklist if a phone, TV or second laptop cannot open the page:
+
+1. **Same network.** The device must be on the same Wi-Fi / router as the Mac.
+   Mobile data does not work. "Guest" Wi-Fi often blocks devices from seeing
+   each other – use the normal network, or bring your own router.
+2. **Use the address from the Terminal window**, typed exactly, starting with
+   `http://` (not `https://`) and ending with `:8001`.
+   `localhost` only works on the Mac itself.
+3. **Allow incoming connections.** The first time, macOS may ask *"Do you want
+   the application "bun" to accept incoming network connections?"* – choose
+   **Allow**. If you pressed Deny: System Settings → Network → Firewall →
+   Options → set **bun** to *Allow incoming connections*.
+4. **The address changed.** The Mac can get a new address when it rejoins the
+   Wi-Fi. Look at the Terminal window (restart `start.command` to see it again)
+   or Operator → **Audience link & PIN**.
+5. **Quick test:** open the address on the Mac itself in Safari. If that works
+   but the phone doesn't, it is the network (1) or the firewall (3).
+
+Screens keep themselves up to date even on networks that block live
+connections, and catch up on their own after a Wi-Fi dropout.
 
 ---
 
@@ -180,7 +223,8 @@ Settings via environment variables: `PORT` (default `8001`) and
 How it fits together: the server holds the live state (which show, which line).
 Operator buttons call `POST /api/control/next | previous | jump | load`; the
 server broadcasts `subIndex` (line changed) and `live` (show or its text changed)
-over socket.io, and every page follows. Displays read `GET /api/live`. Requests
+over socket.io, and every page follows (falling back to polling if websockets
+are blocked). The server listens on all network interfaces (`0.0.0.0`). Displays read `GET /api/live`. Requests
 from the Mac itself are trusted; anything else needs the `X-Operator-Pin` header
 for everything except the display endpoints.
 

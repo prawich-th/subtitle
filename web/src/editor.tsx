@@ -2,6 +2,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
 	blankLine,
+	blankWarning,
+	isWarningsLine,
+	WARNING_COLORS,
+	WARNINGS_CHAR,
+	type Warning,
 	FIELD_LABELS,
 	FIELDS,
 	type Field,
@@ -293,6 +298,12 @@ export function Editor() {
 	const [importing, setImporting] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
 
+	const [warnings, setWarnings] = useState<Warning[]>([]);
+	const [warningSeconds, setWarningSeconds] = useState(5);
+	const [showWarnings, setShowWarnings] = useState(false);
+	const warningsRef = useRef<Warning[]>([]);
+	const secondsRef = useRef(5);
+
 	const linesRef = useRef<Line[]>([]);
 	const titleRef = useRef("");
 	const history = useRef<Line[][]>([]);
@@ -311,8 +322,12 @@ export function Editor() {
 			.then((show) => {
 				linesRef.current = show.lines;
 				titleRef.current = show.title;
+				warningsRef.current = show.warnings;
+				secondsRef.current = show.warningSeconds;
 				setLines(show.lines);
 				setTitle(show.title);
+				setWarnings(show.warnings);
+				setWarningSeconds(show.warningSeconds);
 				const line = Number(searchParams.get("line"));
 				if (line > 0 && show.lines[line]) focusNext.current = show.lines[line].id;
 			})
@@ -328,7 +343,12 @@ export function Editor() {
 			try {
 				await api(`/shows/${showId}`, {
 					method: "PUT",
-					body: { title: titleRef.current, lines: linesRef.current },
+					body: {
+						title: titleRef.current,
+						lines: linesRef.current,
+						warnings: warningsRef.current,
+						warningSeconds: secondsRef.current
+					},
 					keepalive
 				});
 				setStatus(dirty.current ? "unsaved" : "saved");
@@ -454,6 +474,29 @@ export function Editor() {
 			focusNext.current = fresh.id;
 			return [fresh, ...all];
 		});
+
+	const addWarningsLine = () =>
+		change((all) => {
+			const fresh = blankLine({ act: "0", scene: "0", char: WARNINGS_CHAR });
+			focusNext.current = fresh.id;
+			return [fresh, ...all];
+		});
+
+	const changeWarnings = useCallback(
+		(update: (all: Warning[]) => Warning[]) => {
+			warningsRef.current = update(warningsRef.current);
+			setWarnings(warningsRef.current);
+			scheduleSave();
+		},
+		[scheduleSave]
+	);
+
+	const changeSeconds = (value: number) => {
+		if (!Number.isFinite(value)) return;
+		secondsRef.current = Math.min(60, Math.max(2, value));
+		setWarningSeconds(secondsRef.current);
+		scheduleSave();
+	};
 
 	// Put the cursor in a freshly added line (or the line we were asked to open).
 	useEffect(() => {
@@ -588,6 +631,9 @@ export function Editor() {
 				>
 					+ QR code slide
 				</button>
+				<button className="btn" onClick={() => setShowWarnings(!showWarnings)}>
+					{showWarnings ? "Hide warnings" : `Warnings (${warnings.length})`}
+				</button>
 				<button className="btn" onClick={undo} disabled={!canUndo}>
 					↶ Undo
 				</button>
@@ -611,6 +657,17 @@ export function Editor() {
 					onChange={(e) => setFilter(e.target.value)}
 				/>
 			</div>
+
+			{showWarnings && (
+				<WarningsPanel
+					warnings={warnings}
+					seconds={warningSeconds}
+					hasLine={lines.some(isWarningsLine)}
+					onChange={changeWarnings}
+					onSeconds={changeSeconds}
+					onAddLine={addWarningsLine}
+				/>
+			)}
 
 			<datalist id="characters">
 				{characters.map((name) => (
@@ -657,7 +714,8 @@ export function Editor() {
 			<p className="muted shortcuts">
 				Tips: <b>Tab</b> moves to the next box · <b>⌘/Ctrl + Enter</b> adds a line
 				below · <b>Alt + ↑/↓</b> moves between lines · a line whose Character is{" "}
-				<b>QR</b> shows the audience QR code · older versions of every show are kept
+				<b>QR</b> shows the audience QR code, <b>WARNINGS</b> shows the warning
+				carousel · older versions of every show are kept
 				in the <code>data/backups</code> folder.
 			</p>
 
@@ -671,6 +729,145 @@ export function Editor() {
 					}}
 				/>
 			)}
+		</div>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Warning carousel settings
+// ---------------------------------------------------------------------------
+
+function WarningsPanel({
+	warnings,
+	seconds,
+	hasLine,
+	onChange,
+	onSeconds,
+	onAddLine
+}: {
+	warnings: Warning[];
+	seconds: number;
+	hasLine: boolean;
+	onChange: (update: (all: Warning[]) => Warning[]) => void;
+	onSeconds: (value: number) => void;
+	onAddLine: () => void;
+}) {
+	const set = (id: string, changes: Partial<Warning>) =>
+		onChange((all) => all.map((w) => (w.id === id ? { ...w, ...changes } : w)));
+	const move = (index: number, by: number) =>
+		onChange((all) => {
+			const target = index + by;
+			if (target < 0 || target >= all.length) return all;
+			const next = [...all];
+			[next[index], next[target]] = [next[target], next[index]];
+			return next;
+		});
+	const text = (w: Warning, field: "label" | "eng" | "thai", placeholder: string) => (
+		<input
+			key={w[field]}
+			className="field"
+			defaultValue={w[field]}
+			placeholder={placeholder}
+			aria-label={placeholder}
+			onBlur={(e) => e.target.value !== w[field] && set(w.id, { [field]: e.target.value })}
+		/>
+	);
+
+	return (
+		<div className="warnings">
+			<h2>Warning carousel</h2>
+			<p className="muted">
+				Messages for before the show (no filming, no flash…). They appear one after
+				another, on a loop, while the displays are on a line whose Character is{" "}
+				<b>{WARNINGS_CHAR}</b>. Leave the box text empty for a plain line of text.
+			</p>
+			{!hasLine && (
+				<p className="notice">
+					This show has no {WARNINGS_CHAR} line yet, so the carousel will never
+					appear.{" "}
+					<button className="btn btn--primary" onClick={onAddLine}>
+						+ Add it as the first line
+					</button>
+				</p>
+			)}
+
+			{warnings.map((w, index) => (
+				<div key={w.id} className="warnings__item">
+					<div className="warnings__colour">
+						<input
+							type="color"
+							value={w.color}
+							aria-label="Box colour"
+							title="Pick any colour"
+							onChange={(e) => set(w.id, { color: e.target.value })}
+						/>
+						<div className="warnings__swatches">
+							{WARNING_COLORS.map((color) => (
+								<button
+									key={color}
+									style={{ backgroundColor: color }}
+									title={color}
+									aria-label={`Use colour ${color}`}
+									onClick={() => set(w.id, { color })}
+								/>
+							))}
+						</div>
+					</div>
+					{text(w, "label", "Box text, e.g. NO FILM")}
+					{text(w, "eng", "English")}
+					{text(w, "thai", "Thai")}
+					<div
+						className="warnings__preview"
+						style={{ backgroundColor: w.label ? w.color : "transparent" }}
+					>
+						{w.label || "(plain text)"}
+					</div>
+					<div className="row__actions warnings__actions">
+						<button title="Move up" onClick={() => move(index, -1)}>
+							↑
+						</button>
+						<button title="Move down" onClick={() => move(index, 1)}>
+							↓
+						</button>
+						<button
+							title="Delete this warning"
+							className="row__delete"
+							onClick={() => onChange((all) => all.filter((x) => x.id !== w.id))}
+						>
+							✕
+						</button>
+					</div>
+				</div>
+			))}
+
+			<div className="warnings__foot">
+				<button
+					className="btn"
+					onClick={() =>
+						onChange((all) => [
+							...all,
+							blankWarning({
+								color: WARNING_COLORS[all.length % WARNING_COLORS.length]
+							})
+						])
+					}
+				>
+					+ Add warning
+				</button>
+				<label>
+					Show each one for{" "}
+					<input
+						key={seconds}
+						className="field warnings__seconds"
+						type="number"
+						min={2}
+						max={60}
+						defaultValue={seconds}
+						onBlur={(e) => onSeconds(Number(e.target.value))}
+					/>{" "}
+					seconds
+				</label>
+			</div>
 		</div>
 	);
 }

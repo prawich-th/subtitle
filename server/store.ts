@@ -13,8 +13,11 @@ import {
   type Line,
   type Show,
   type ShowSummary,
+  type Warning,
   newId,
   normalizeLines,
+  normalizeSeconds,
+  normalizeWarnings,
 } from "../shared/lines";
 
 export const DATA_DIR = path.resolve(
@@ -107,7 +110,13 @@ export const getShow = (id: string): Show | null => {
   if (!isValidId(id)) return null;
   const show = readJson<Show>(showFile(id));
   if (!show) return null;
-  return { ...show, id, lines: normalizeLines(show.lines) };
+  return {
+    ...show,
+    id,
+    lines: normalizeLines(show.lines),
+    warnings: normalizeWarnings(show.warnings),
+    warningSeconds: normalizeSeconds(show.warningSeconds),
+  };
 };
 
 export const listShows = (liveId: string | null): ShowSummary[] => {
@@ -127,7 +136,11 @@ export const listShows = (liveId: string | null): ShowSummary[] => {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 };
 
-export const createShow = (title: string, lines: Line[] = []): Show => {
+export const createShow = (
+  title: string,
+  lines: Line[] = [],
+  extra: { warnings?: Warning[]; warningSeconds?: number } = {},
+): Show => {
   const cleanTitle = title.trim() || "Untitled show";
   let id = slug(cleanTitle) || "show";
   if (fs.existsSync(showFile(id))) id = `${id}-${newId().slice(0, 5)}`;
@@ -138,6 +151,8 @@ export const createShow = (title: string, lines: Line[] = []): Show => {
     createdAt: now,
     updatedAt: now,
     lines: normalizeLines(lines),
+    warnings: normalizeWarnings(extra.warnings),
+    warningSeconds: normalizeSeconds(extra.warningSeconds),
   };
   writeJson(showFile(id), show);
   return show;
@@ -161,7 +176,12 @@ const backUp = (id: string) => {
 
 export const updateShow = (
   id: string,
-  changes: { title?: string; lines?: unknown },
+  changes: {
+    title?: string;
+    lines?: unknown;
+    warnings?: unknown;
+    warningSeconds?: unknown;
+  },
 ): Show | null => {
   const show = getShow(id);
   if (!show) return null;
@@ -170,6 +190,12 @@ export const updateShow = (
     show.title = changes.title.trim();
   }
   if (Array.isArray(changes.lines)) show.lines = normalizeLines(changes.lines);
+  if (Array.isArray(changes.warnings)) {
+    show.warnings = normalizeWarnings(changes.warnings);
+  }
+  if (changes.warningSeconds !== undefined) {
+    show.warningSeconds = normalizeSeconds(changes.warningSeconds);
+  }
   show.updatedAt = new Date().toISOString();
   writeJson(showFile(id), show);
   return show;

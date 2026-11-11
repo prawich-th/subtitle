@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Line } from "../../shared/lines";
+import { isWarningsLine, type Line, type Warning } from "../../shared/lines";
 import "./display.scss";
 import { useLive } from "./api";
 import { useMediaQuery } from "react-responsive";
@@ -18,6 +18,58 @@ const EMPTY: Subtitle = {
 	isLyric: false,
 	remark: ""
 };
+
+// The pre-show warnings ("NO FILM – No filming or video recording allowed."),
+// shown one after another for as long as the operator stays on a line whose
+// Character is WARNINGS. The slides are edited in the Editor.
+function WarningCarousel({
+	warnings,
+	seconds
+}: {
+	warnings: Warning[];
+	seconds: number;
+}) {
+	const slides = warnings.filter((w) => w.label || w.eng || w.thai);
+	const [turn, setTurn] = useState(0);
+	useEffect(() => {
+		const timer = setInterval(() => setTurn((t) => t + 1), seconds * 1000);
+		return () => clearInterval(timer);
+	}, [seconds]);
+
+	if (slides.length === 0) return <div className="warning" />;
+	const slide = slides[turn % slides.length];
+	// A slide without a label is a plain line of text, e.g. "NovaDrama | No theatre without people".
+	const [lead, ...rest] = slide.eng.split("|");
+
+	return (
+		<div className="warning">
+			{/* `key` restarts the fade-in / fade-out for every slide */}
+			<div
+				className="warning__slide"
+				key={turn}
+				style={{ animationDuration: `${seconds}s` }}
+			>
+				{slide.label ? (
+					<>
+						<span className="warning__label" style={{ backgroundColor: slide.color }}>
+							{slide.label}
+						</span>
+						<span className="warning__text">
+							<span>{slide.eng}</span>
+							<span>{slide.thai}</span>
+						</span>
+					</>
+				) : (
+					<span className="warning__plain">
+						{lead}
+						{rest.length > 0 && <i>|{rest.join("|")}</i>}
+						{slide.thai && <span className="warning__plain--thai">{slide.thai}</span>}
+					</span>
+				)}
+			</div>
+		</div>
+	);
+}
 
 // What the audience sees. The look of this page is intentionally left exactly
 // as it was; only the way it gets its data changed (it now simply follows the
@@ -65,6 +117,15 @@ export default function Display() {
 
 	if (isLoading) {
 		return <div>Loading...</div>;
+	}
+
+	if (isWarningsLine(currentSubtitle)) {
+		return (
+			<WarningCarousel
+				warnings={live?.warnings ?? []}
+				seconds={live?.warningSeconds ?? 5}
+			/>
+		);
 	}
 
 	if (currentSubtitle?.char === "QR") {

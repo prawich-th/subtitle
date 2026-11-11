@@ -12,13 +12,32 @@ export type Line = {
   remark: string;
 };
 
+/** One slide of the pre-show warning carousel ("NO FILM – No filming allowed"). */
+export type Warning = {
+  id: string;
+  /** Short text in the coloured box. Leave empty for a plain text slide. */
+  label: string;
+  /** Colour of the box, e.g. "#a61b33". */
+  color: string;
+  eng: string;
+  thai: string;
+};
+
 export type Show = {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
   lines: Line[];
+  warnings: Warning[];
+  /** How long each warning stays on screen. */
+  warningSeconds: number;
 };
+
+/** A line whose Character is this word shows the warning carousel on the displays. */
+export const WARNINGS_CHAR = "WARNINGS";
+export const isWarningsLine = (line?: { char: string } | null) =>
+  /^warnings?$/i.test(line?.char.trim() ?? "");
 
 export type ShowSummary = {
   id: string;
@@ -33,6 +52,8 @@ export type LiveState = {
   title: string;
   index: number;
   lines: Line[];
+  warnings: Warning[];
+  warningSeconds: number;
 };
 
 export const FIELDS = [
@@ -147,6 +168,58 @@ export const normalizeLines = (raw: unknown, fillDown = false): Line[] => {
     seen.add(line.id);
   }
   return fillDown ? fillDownActScene(lines) : lines;
+};
+
+// ---------------------------------------------------------------------------
+// Warning carousel
+// ---------------------------------------------------------------------------
+
+export const WARNING_COLORS = ["#a61b33", "#1e9e1e", "#1aa7f0", "#fbae3c", "#7b3fe4", "#444444"];
+export const DEFAULT_WARNING_SECONDS = 5;
+
+const defaultWarnings: Omit<Warning, "id">[] = [
+  { label: "NO FILM", color: "#a61b33", eng: "No filming or video recording allowed.", thai: "ห้ามบันทึกภาพเคลื่อนไหวและวิดีโอทุกชนิด" },
+  { label: "ALL AGES", color: "#1e9e1e", eng: "This show is suitable for all ages.", thai: "การแสดงนี้เหมาะสำหรับผู้ชมทุกวัย" },
+  { label: "NO FLASH", color: "#1aa7f0", eng: "Photography is permitted without flash.", thai: "อนุญาตให้ถ่ายภาพนิ่งได้โดยงดใช้แฟลช" },
+  { label: "NO FOOD", color: "#fbae3c", eng: "No food or drinks allowed inside the theatre.", thai: "งดนำอาหารและเครื่องดื่มเข้าภายในโรงละคร" },
+  { label: "", color: "#444444", eng: "NovaDrama | No theatre without people", thai: "" },
+];
+export const makeDefaultWarnings = (): Warning[] =>
+  defaultWarnings.map((w) => ({ ...w, id: newId() }));
+
+export const blankWarning = (partial: Partial<Warning> = {}): Warning => ({
+  id: newId(),
+  label: "",
+  color: WARNING_COLORS[0],
+  eng: "",
+  thai: "",
+  ...partial,
+});
+
+/** `undefined` (a show saved before warnings existed) gets the standard set. */
+export const normalizeWarnings = (raw: unknown): Warning[] => {
+  if (!Array.isArray(raw)) return makeDefaultWarnings();
+  const seen = new Set<string>();
+  return raw.map((item: any) => {
+    let id = text(item?.id) || newId();
+    if (seen.has(id)) id = newId();
+    seen.add(id);
+    const color = text(item?.color);
+    return {
+      id,
+      label: text(item?.label),
+      color: /^#[0-9a-f]{6}$/i.test(color) ? color : WARNING_COLORS[0],
+      eng: text(item?.eng),
+      thai: text(item?.thai),
+    };
+  });
+};
+
+export const normalizeSeconds = (raw: unknown): number => {
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds > 0
+    ? Math.min(60, Math.max(2, seconds))
+    : DEFAULT_WARNING_SECONDS;
 };
 
 // ---------------------------------------------------------------------------
