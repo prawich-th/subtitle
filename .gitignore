@@ -1,11 +1,9 @@
 .DS_Store
 node_modules
-.turbo
-*.log
 dist
-dist-ssr
+*.log
 *.local
 .env
-.cache
-server/dist
-public/dist
+
+# Your shows, backups and settings (created when the program first runs)
+/data
