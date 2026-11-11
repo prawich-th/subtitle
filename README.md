@@ -19,8 +19,21 @@ your browser. That's it.
 - The **first time** takes about a minute and needs internet (it downloads what it needs). After that it works offline.
 - The Mac will not go to sleep while the program is running.
 
-> **"start.command cannot be opened because it is from an unidentified developer"**
-> Right-click the file → **Open** → **Open**. You only need to do this once.
+### "Apple could not verify start.command is free of malware"
+
+macOS shows this the first time, because the folder was downloaded from the
+internet. You only need to allow it **once** per Mac:
+
+1. Press **Done** on the warning (not "Move to Trash").
+2. Open **System Settings → Privacy & Security** and scroll down to **Security**.
+3. Next to *"start.command" was blocked…* press **Open Anyway**, then confirm
+   with the Mac's password or Touch ID.
+4. Double-click `start.command` again and choose **Open**.
+
+If the **Open Anyway** button is not there, do this instead: open the
+**Terminal** app, type `xattr -dr com.apple.quarantine ` (with a space at the
+end), drag the subtitle folder from Finder into the Terminal window, and press
+Return. Then double-click `start.command` again.
 
 To stop: close the Terminal window (or press `Control + C` in it).
 
